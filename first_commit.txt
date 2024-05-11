@@ -62,7 +62,7 @@ void create_snapshot(const char *basePath) {
 
     FILE *snapshot_file = fopen(filename, "w");
     if (!snapshot_file) {
-        fprintf(stderr, "Eroare la deschiderea fisierului snapshot: %s\n", filename);
+        fprintf(stderr, "Eroare la deschiderea fisierului snapshot! %s\n", filename);
         exit(EXIT_FAILURE);
     }
 
@@ -79,18 +79,18 @@ int main(int argc, char *argv[]) {
     for (int i = 1; i < argc; i++) {
         pid_t pid = fork();
         if (pid == -1) {
-            fprintf(stderr, "Eroare la crearea procesului copil\n");
+            fprintf(stderr, "Eroare la crearea procesului copil!\n");
             continue;
         }
 
-        if (pid == 0) { // Procesul copil
+        if (pid == 0) {
             create_snapshot(argv[i]);
             printf("Snapshot for Directory %s created successfully.\n", argv[i]);
             exit(EXIT_SUCCESS);
         }
     }
 
-    // Procesul părinte așteaptă finalizarea tuturor proceselor copil
+    
     int status = 0;
     pid_t pid;
     while ((pid = wait(&status)) != -1) {
