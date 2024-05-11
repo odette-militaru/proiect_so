@@ -1,0 +1,103 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <dirent.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#include <time.h>
+
+#define SNAPSHOT_FILE "snapshot_"
+
+void metasave(const char *path, FILE *snapshot_file) {
+    DIR *dir = opendir(path);
+    struct dirent *entry;
+    struct stat statbuf;
+    char fullPath[1024];
+    char lastAccessTime[20];
+    char lastModTime[20];
+    char perm[11];
+
+    if (!dir) {
+        fprintf(stderr, "Eroare la deschiderea directorului: %s\n", path);
+        return;
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        snprintf(fullPath, sizeof(fullPath), "%s/%s", path, entry->d_name);
+
+        if (stat(fullPath, &statbuf) == -1) {
+            fprintf(stderr, "Eroare la obtinerea statutului fisierului: %s\n", fullPath);
+            continue;
+        }
+
+        strftime(lastAccessTime, sizeof(lastAccessTime), "%Y-%m-%d %H:%M:%S", localtime(&statbuf.st_atime));
+        strftime(lastModTime, sizeof(lastModTime), "%Y-%m-%d %H:%M:%S", localtime(&statbuf.st_mtime));
+        snprintf(perm, sizeof(perm), "%c%c%c%c%c%c%c%c%c%c",
+                 (S_ISDIR(statbuf.st_mode)) ? 'd' : '-',
+                 (statbuf.st_mode & S_IRUSR) ? 'r' : '-',
+                 (statbuf.st_mode & S_IWUSR) ? 'w' : '-',
+                 (statbuf.st_mode & S_IXUSR) ? 'x' : '-',
+                 (statbuf.st_mode & S_IRGRP) ? 'r' : '-',
+                 (statbuf.st_mode & S_IWGRP) ? 'w' : '-',
+                 (statbuf.st_mode & S_IXGRP) ? 'x' : '-',
+                 (statbuf.st_mode & S_IROTH) ? 'r' : '-',
+                 (statbuf.st_mode & S_IWOTH) ? 'w' : '-',
+                 (statbuf.st_mode & S_IXOTH) ? 'x' : '-');
+
+        fprintf(snapshot_file, "Path: %s\nInode Number: %ld\nSize: %ld bytes\nPermissions: %s\nLast Access: %s\nLast Modified: %s\n\n",
+                fullPath, statbuf.st_ino, statbuf.st_size, perm, lastAccessTime, lastModTime);
+    }
+
+    closedir(dir);
+}
+
+void create_snapshot(const char *basePath) {
+    char filename[256];
+    snprintf(filename, sizeof(filename), "%s%s.txt", SNAPSHOT_FILE, strrchr(basePath, '/') ? strrchr(basePath, '/') + 1 : basePath);
+
+    FILE *snapshot_file = fopen(filename, "w");
+    if (!snapshot_file) {
+        fprintf(stderr, "Eroare la deschiderea fisierului snapshot: %s\n", filename);
+        exit(EXIT_FAILURE);
+    }
+
+    metasave(basePath, snapshot_file);
+    fclose(snapshot_file);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc < 2) {
+        fprintf(stderr, "Utilizare: %s <director de monitorizat> [<director de monitorizat> ...]\n", argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    for (int i = 1; i < argc; i++) {
+        pid_t pid = fork();
+        if (pid == -1) {
+            fprintf(stderr, "Eroare la crearea procesului copil\n");
+            continue;
+        }
+
+        if (pid == 0) { // Procesul copil
+            create_snapshot(argv[i]);
+            printf("Snapshot for Directory %s created successfully.\n", argv[i]);
+            exit(EXIT_SUCCESS);
+        }
+    }
+
+    // Procesul părinte așteaptă finalizarea tuturor proceselor copil
+    int status = 0;
+    pid_t pid;
+    while ((pid = wait(&status)) != -1) {
+        if (WIFEXITED(status)) {
+            printf("Child Process terminated with PID %d and exit code %d.\n", pid, WEXITSTATUS(status));
+        } 
+    }
+
+    return EXIT_SUCCESS;
+}
