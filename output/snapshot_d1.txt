@@ -1,0 +1,7 @@
+Path: d1/d15
+Inode Number: 48919
+Size: 4096 bytes
+Permissions: drwxr-xr-x
+Last Access: 2024-05-17 14:06:14
+Last Modified: 2024-05-17 14:05:31
+
